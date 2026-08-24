@@ -54,7 +54,7 @@ export default async function RacePage({ params }: Props) {
     actualTrifecta.every((carNo, i) => carNo === topTrifecta.carNos[i]);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6 px-6 py-16">
+    <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6 px-6 py-16">
       <Link href="/" className="text-sm text-red-600 hover:underline">
         ← 会場・日付・レースを選び直す
       </Link>
@@ -77,7 +77,7 @@ export default async function RacePage({ params }: Props) {
         )}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
+      <div className="min-w-0 overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
         <table className="w-full min-w-[720px] border-collapse text-sm">
           <thead>
             <tr className="border-b border-black/10 bg-black/5 text-left dark:border-white/15 dark:bg-white/5">
@@ -133,7 +133,7 @@ export default async function RacePage({ params }: Props) {
             予想点を強さとして、1着→2着→3着を20,000回抽選し最も出現回数が多かった組み合わせです。
           </p>
 
-          <div className="mt-4 flex items-center gap-4 rounded-lg bg-black/5 p-4 dark:bg-white/5">
+          <div className="mt-4 flex flex-wrap items-center gap-4 rounded-lg bg-black/5 p-4 dark:bg-white/5">
             <div className="flex items-center gap-2 text-2xl font-bold">
               {topTrifecta.carNos.map((carNo, i) => (
                 <span key={i} className="flex items-center gap-2">
