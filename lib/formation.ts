@@ -6,13 +6,18 @@ export interface FormationCombo {
 }
 
 export interface Formation {
-  axisCarNo: number;
+  axisCarNos: number[];
   secondCandidates: number[];
   thirdCandidates: number[];
   anaCarNo: number | null;
   combos: FormationCombo[];
   totalCoverage: number;
 }
+
+/** Below this cumulative hit-probability we keep widening the formation. */
+export const TARGET_COVERAGE = 0.28;
+/** Hard cap on ticket count so a wide-open race doesn't blow up the buy. */
+const MAX_COMBOS = 42;
 
 /**
  * Exact (non-simulated) Plackett-Luce probability that the race finishes
@@ -35,12 +40,37 @@ function tripleProbability(
   return p1 * p2 * p3;
 }
 
+function buildCombos(
+  weights: Record<number, number>,
+  total: number,
+  axisCarNos: number[],
+  secondPool: number[],
+  thirdPool: number[],
+): FormationCombo[] {
+  const combos: FormationCombo[] = [];
+  for (const a of axisCarNos) {
+    for (const b of secondPool) {
+      if (b === a) continue;
+      for (const c of thirdPool) {
+        if (c === a || c === b) continue;
+        combos.push({
+          carNos: [a, b, c],
+          probability: tripleProbability(weights, total, a, b, c),
+        });
+      }
+    }
+  }
+  return combos;
+}
+
 /**
- * Builds a "フォーメーション" (formation) bet: a fixed axis for 1st, a small
- * group of live candidates for 2nd, and a wider group for 3rd that also
- * includes one 大穴 (long shot) — the best-scoring car outside the main
- * group, i.e. the most plausible upset pick rather than the single worst
- * entry in the field.
+ * Builds a "フォーメーション" (formation) bet, sized to the race rather than
+ * a fixed template: a tight race (no standout favorite) gets a 2-car axis
+ * and wider candidate groups, while a race with a clear favorite gets a
+ * single axis and a tighter group — expanding either way until the combined
+ * hit probability clears TARGET_COVERAGE (or the ticket count hits
+ * MAX_COMBOS). The 3rd-place group always folds in one 大穴 (long shot): the
+ * best-scoring car outside the main group, not just the single worst entry.
  */
 export function buildFormation(scored: ScoredEntry[]): Formation | null {
   if (scored.length < 5) return null;
@@ -51,33 +81,65 @@ export function buildFormation(scored: ScoredEntry[]): Formation | null {
 
   // `scored` is already ranked best-to-worst by predicted strength.
   const ranked = scored.map((s) => s.entry.carNo);
+  const p1 = ranked.map((carNo) => weights[carNo] / total);
 
-  const axisCarNo = ranked[0];
-  const secondCandidates = ranked.slice(1, 4); // rank 2-4
-  const thirdMain = ranked.slice(1, 6); // rank 2-6
-  const anaCarNo = ranked[6] ?? null; // best of the rest = the live long shot
-  const thirdCandidates = anaCarNo ? [...thirdMain, anaCarNo] : thirdMain;
+  // A close or wide-open race gets a 2-car axis instead of 1.
+  const axisCarNos =
+    p1[0] < 0.3 || p1[0] - p1[1] < 0.05 ? [ranked[0], ranked[1]] : [ranked[0]];
 
-  const combos: FormationCombo[] = [];
-  for (const b of secondCandidates) {
-    for (const c of thirdCandidates) {
-      if (c === b) continue;
-      combos.push({
-        carNos: [axisCarNo, b, c],
-        probability: tripleProbability(weights, total, axisCarNo, b, c),
-      });
+  let secondSize = Math.min(3, ranked.length - 1);
+  let thirdSize = Math.min(5, ranked.length - 1);
+
+  let secondCandidates = ranked.slice(0, secondSize);
+  let thirdMain = ranked.slice(0, thirdSize);
+  let anaCarNo = ranked[thirdSize] ?? null;
+  let thirdCandidates = anaCarNo ? [...thirdMain, anaCarNo] : thirdMain;
+  let combos = buildCombos(
+    weights,
+    total,
+    axisCarNos,
+    secondCandidates,
+    thirdCandidates,
+  );
+  let coverage = combos.reduce((sum, c) => sum + c.probability, 0);
+
+  // Widen the net (alternating 3rd/2nd) until we hit the coverage target,
+  // run out of cars to add, or hit the ticket-count ceiling.
+  while (
+    coverage < TARGET_COVERAGE &&
+    combos.length < MAX_COMBOS &&
+    (thirdSize < ranked.length - 1 || secondSize < ranked.length - 1)
+  ) {
+    if (thirdSize < ranked.length - 1) {
+      thirdSize++;
+    } else if (secondSize < ranked.length - 1) {
+      secondSize++;
+    } else {
+      break;
     }
+
+    secondCandidates = ranked.slice(0, secondSize);
+    thirdMain = ranked.slice(0, thirdSize);
+    anaCarNo = ranked[thirdSize] ?? null;
+    thirdCandidates = anaCarNo ? [...thirdMain, anaCarNo] : thirdMain;
+    combos = buildCombos(
+      weights,
+      total,
+      axisCarNos,
+      secondCandidates,
+      thirdCandidates,
+    );
+    coverage = combos.reduce((sum, c) => sum + c.probability, 0);
   }
 
   combos.sort((x, y) => y.probability - x.probability);
-  const totalCoverage = combos.reduce((sum, c) => sum + c.probability, 0);
 
   return {
-    axisCarNo,
+    axisCarNos,
     secondCandidates,
     thirdCandidates,
     anaCarNo,
     combos,
-    totalCoverage,
+    totalCoverage: coverage,
   };
 }

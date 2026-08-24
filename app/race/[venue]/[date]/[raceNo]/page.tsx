@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getOrFetchRace, RaceNotFoundError } from "@/lib/scrape";
 import { computeScores } from "@/lib/predict";
 import { simulateTrifecta } from "@/lib/simulate";
-import { buildFormation } from "@/lib/formation";
+import { buildFormation, TARGET_COVERAGE } from "@/lib/formation";
 import { venueByKey } from "@/lib/venues";
 
 interface Props {
@@ -205,17 +205,24 @@ export default async function RacePage({ params }: Props) {
         <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
           <h2 className="text-lg font-bold">フォーメーション予想(大穴込み)</h2>
           <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-            1着を軸に固定し、2着・3着を複数候補でカバーする買い方です。3着候補には本命グループ以外から最も期待できる大穴を1頭加えています。各組み合わせの確率は数式による厳密な計算値です。
+            1着を軸に固定し、2着・3着を複数候補でカバーする買い方です。混戦度合いに応じて軸の頭数や候補の広さを自動調整し、合計的中確率が目安({(TARGET_COVERAGE * 100).toFixed(0)}%)に届くまで候補を広げています。3着候補には本命グループ以外から最も期待できる大穴を1頭加えています。各組み合わせの確率は数式による厳密な計算値です。
           </p>
 
           <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg bg-black/5 p-4 text-sm dark:bg-white/5 sm:grid-cols-3">
             <div>
-              <p className="text-black/60 dark:text-white/60">1着(軸)</p>
+              <p className="text-black/60 dark:text-white/60">
+                1着(軸{formation.axisCarNos.length > 1 ? "・2頭" : ""})
+              </p>
               <p className="mt-1 text-lg font-bold">
-                {formation.axisCarNo}{" "}
-                <span className="text-sm font-normal">
-                  {nameByCarNo.get(formation.axisCarNo)}
-                </span>
+                {formation.axisCarNos.map((carNo, i) => (
+                  <span key={carNo}>
+                    {i > 0 && " / "}
+                    {carNo}{" "}
+                    <span className="text-sm font-normal">
+                      {nameByCarNo.get(carNo)}
+                    </span>
+                  </span>
+                ))}
               </p>
             </div>
             <div>
