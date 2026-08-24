@@ -2,6 +2,10 @@ import Link from "next/link";
 import { getRacesWithResults } from "@/lib/scrape";
 import { computeStats } from "@/lib/stats";
 
+// Reads live DB state on every request; must not be statically prerendered
+// at build time (the production DB doesn't exist yet when `next build` runs).
+export const dynamic = "force-dynamic";
+
 export default async function StatsPage() {
   const races = await getRacesWithResults();
   const stats = computeStats(races);
