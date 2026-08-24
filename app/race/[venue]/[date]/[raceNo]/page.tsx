@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getOrFetchRace, RaceNotFoundError } from "@/lib/scrape";
 import { computeScores } from "@/lib/predict";
 import { simulateTrifecta } from "@/lib/simulate";
+import { buildFormation } from "@/lib/formation";
 import { venueByKey } from "@/lib/venues";
 
 interface Props {
@@ -42,6 +43,7 @@ export default async function RacePage({ params }: Props) {
 
   const trifectaCandidates = simulateTrifecta(scored, 20000);
   const topTrifecta = trifectaCandidates[0];
+  const formation = buildFormation(scored);
 
   const actualTrifecta = hasResults
     ? [1, 2, 3]
@@ -52,6 +54,11 @@ export default async function RacePage({ params }: Props) {
     actualTrifecta.length === 3 &&
     topTrifecta &&
     actualTrifecta.every((carNo, i) => carNo === topTrifecta.carNos[i]);
+  const actualKey = actualTrifecta.length === 3 ? actualTrifecta.join("-") : null;
+  const formationHitCombo =
+    formation && actualKey
+      ? formation.combos.find((c) => c.carNos.join("-") === actualKey)
+      : undefined;
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6 px-6 py-16">
@@ -194,8 +201,110 @@ export default async function RacePage({ params }: Props) {
         </div>
       )}
 
+      {formation && (
+        <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+          <h2 className="text-lg font-bold">フォーメーション予想(大穴込み)</h2>
+          <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+            1着を軸に固定し、2着・3着を複数候補でカバーする買い方です。3着候補には本命グループ以外から最も期待できる大穴を1頭加えています。各組み合わせの確率は数式による厳密な計算値です。
+          </p>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg bg-black/5 p-4 text-sm dark:bg-white/5 sm:grid-cols-3">
+            <div>
+              <p className="text-black/60 dark:text-white/60">1着(軸)</p>
+              <p className="mt-1 text-lg font-bold">
+                {formation.axisCarNo}{" "}
+                <span className="text-sm font-normal">
+                  {nameByCarNo.get(formation.axisCarNo)}
+                </span>
+              </p>
+            </div>
+            <div>
+              <p className="text-black/60 dark:text-white/60">2着候補</p>
+              <p className="mt-1 font-bold">
+                {formation.secondCandidates.join(" / ")}
+              </p>
+            </div>
+            <div>
+              <p className="text-black/60 dark:text-white/60">3着候補</p>
+              <p className="mt-1 font-bold">
+                {formation.thirdCandidates.map((carNo, i) => (
+                  <span key={carNo}>
+                    {i > 0 && " / "}
+                    {carNo}
+                    {carNo === formation.anaCarNo && (
+                      <span className="text-red-600"> (穴)</span>
+                    )}
+                  </span>
+                ))}
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-3 text-sm">
+            合計{formation.combos.length}点で、合計カバー率{" "}
+            <span className="font-bold">
+              {(formation.totalCoverage * 100).toFixed(1)}%
+            </span>
+            (単一の3連単予想の約
+            {topTrifecta
+              ? (formation.totalCoverage / topTrifecta.probability).toFixed(1)
+              : "-"}
+            倍の的中確率をカバー)
+          </p>
+
+          {hasResults && actualKey && (
+            <p
+              className={`mt-2 text-sm ${
+                formationHitCombo
+                  ? "text-green-700 dark:text-green-400"
+                  : "text-black/60 dark:text-white/60"
+              }`}
+            >
+              実際の結果: {actualTrifecta.join(" → ")}
+              {formationHitCombo
+                ? `(フォーメーション的中!確率${(formationHitCombo.probability * 100).toFixed(1)}%の組み合わせでした)`
+                : "(フォーメーション圏外)"}
+            </p>
+          )}
+
+          <div className="mt-4 min-w-0 overflow-x-auto">
+            <table className="w-full min-w-[420px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-black/10 text-left dark:border-white/15">
+                  <Th>順位</Th>
+                  <Th>3連単</Th>
+                  <Th>確率</Th>
+                  <Th>大穴</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {formation.combos.map((c, i) => {
+                  const isAna = c.carNos.includes(formation.anaCarNo ?? -1);
+                  const isActual = actualKey === c.carNos.join("-");
+                  return (
+                    <tr
+                      key={c.carNos.join("-")}
+                      className={`border-b border-black/5 last:border-0 dark:border-white/10 ${
+                        isActual
+                          ? "bg-green-50 dark:bg-green-950/40"
+                          : ""
+                      }`}
+                    >
+                      <Td>{i + 1}</Td>
+                      <Td>{c.carNos.join(" - ")}</Td>
+                      <Td>{(c.probability * 100).toFixed(2)}%</Td>
+                      <Td>{isAna ? "◯" : ""}</Td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-black/50 dark:text-white/50">
-        「実質差」は0.1秒=10m詰められるという経験則をもとに、1周(500m)あたりの試走タイム差をレースの周回数分積み重ねてハンデ(m)と合算した、実質的な後方距離です(0=最有利)。周回を重ねるほど速さの差が効いてくるため、試走タイムが明確に速い選手はハンデが不利でも上位に評価されやすくなります。予想点はこの実質差を最重視(7割)し、3連率・2連率・直近3走成績を加味して算出したルールベースのスコアです。3連単予想は予想点を強さとしたシミュレーションによる参考値です。投票の勝敗を保証するものではありません。
+        「実質差」は0.1秒=10m詰められるという経験則をもとに、1周(500m)あたりの試走タイム差をレースの周回数分積み重ねてハンデ(m)と合算した、実質的な後方距離です(0=最有利)。周回を重ねるほど速さの差が効いてくるため、試走タイムが明確に速い選手はハンデが不利でも上位に評価されやすくなります。予想点はこの実質差を最重視(7割)し、3連率・2連率・直近3走成績を加味して算出したルールベースのスコアです。3連単予想・フォーメーション予想は予想点を強さとした確率計算による参考値です。フォーメーションは点数が増えるほど購入コストも増えます。投票の勝敗を保証するものではありません。
       </p>
     </div>
   );
