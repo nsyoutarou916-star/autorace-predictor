@@ -29,27 +29,13 @@ export default async function StatsPage() {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <StatCard
               label="◎単勝的中率"
               hint="◎の選手が実際に1着だった割合"
               count={stats.winHitCount}
               total={stats.totalRaces}
               rate={stats.winHitRate}
-            />
-            <StatCard
-              label="3連単的中率"
-              hint="予想の3連単が着順まで一致した割合"
-              count={stats.trifectaHitCount}
-              total={stats.totalRaces}
-              rate={stats.trifectaHitRate}
-            />
-            <StatCard
-              label="3連複的中率"
-              hint="予想の上位3車が着順問わず一致した割合"
-              count={stats.trifectaBoxHitCount}
-              total={stats.totalRaces}
-              rate={stats.trifectaBoxHitRate}
             />
             <StatCard
               label="フォーメーション的中率"
@@ -61,7 +47,7 @@ export default async function StatsPage() {
           </div>
 
           <div className="min-w-0 overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
+            <table className="w-full min-w-[480px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-black/10 bg-black/5 text-left dark:border-white/15 dark:bg-white/5">
                   <Th>日付</Th>
@@ -70,10 +56,6 @@ export default async function StatsPage() {
                   <Th>◎</Th>
                   <Th>実際1着</Th>
                   <Th>単勝</Th>
-                  <Th>予想3連単</Th>
-                  <Th>実際3連単</Th>
-                  <Th>3連単</Th>
-                  <Th>3連複</Th>
                   <Th>フォーメーション</Th>
                 </tr>
               </thead>
@@ -89,10 +71,6 @@ export default async function StatsPage() {
                     <Td>{row.predictedWinnerCarNo}</Td>
                     <Td>{row.actualWinnerCarNo ?? "-"}</Td>
                     <Td>{row.winHit ? "◯" : "×"}</Td>
-                    <Td>{row.predictedTrifecta?.join("-") ?? "-"}</Td>
-                    <Td>{row.actualTrifecta?.join("-") ?? "-"}</Td>
-                    <Td>{row.trifectaHit ? "◯" : "×"}</Td>
-                    <Td>{row.trifectaBoxHit ? "◯" : "×"}</Td>
                     <Td>
                       {row.formationComboCount === null
                         ? "-"
