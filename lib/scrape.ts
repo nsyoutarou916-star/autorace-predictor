@@ -9,6 +9,37 @@ import {
 
 export class RaceNotFoundError extends Error {}
 
+/**
+ * Fetches the confirmed result for a race and stores it if available.
+ * Best-effort: races that haven't run yet simply fail here, which is
+ * expected and not treated as an error.
+ */
+async function attachResultsIfAvailable(
+  raceId: number,
+  placeCode: number,
+  raceDate: string,
+  raceNo: number,
+) {
+  try {
+    const result = await fetchRaceResult({ placeCode, raceDate, raceNo });
+    if (result.raceResult && result.raceResult.length > 0) {
+      await prisma.resultEntry.deleteMany({ where: { raceId } });
+      await prisma.resultEntry.createMany({
+        data: result.raceResult.map((r) => ({
+          raceId,
+          carNo: r.carNo,
+          order: r.order,
+          playerName: r.playerName,
+          raceTime: r.raceTime,
+          st: r.st,
+        })),
+      });
+    }
+  } catch {
+    // No confirmed result yet — not an error for our purposes.
+  }
+}
+
 export async function getOrFetchRace(
   venueKey: string,
   raceDate: string,
@@ -33,7 +64,20 @@ export async function getOrFetchRace(
     },
     include: { entries: true, results: true },
   });
-  if (cached && cached.entries.length > 0) return cached;
+
+  if (cached && cached.entries.length > 0) {
+    // Entries are stable once scraped, but a race that hadn't finished (or
+    // had only just finished, with results still trickling in) when first
+    // cached would have no results or a partial set — retry fetching those
+    // on every cache hit until every entrant has a result, instead of
+    // caching "no result"/"partial result" forever.
+    if (cached.results.length >= cached.entries.length) return cached;
+    await attachResultsIfAvailable(cached.id, venue.code, raceDate, raceNo);
+    return prisma.race.findUniqueOrThrow({
+      where: { id: cached.id },
+      include: { entries: true, results: true },
+    });
+  }
 
   let program;
   try {
@@ -109,32 +153,19 @@ export async function getOrFetchRace(
     })),
   });
 
-  // Results are best-effort: races that haven't run yet will fail here.
-  try {
-    const result = await fetchRaceResult({
-      placeCode: venue.code,
-      raceDate,
-      raceNo,
-    });
-    if (result.raceResult && result.raceResult.length > 0) {
-      await prisma.resultEntry.deleteMany({ where: { raceId: race.id } });
-      await prisma.resultEntry.createMany({
-        data: result.raceResult.map((r) => ({
-          raceId: race.id,
-          carNo: r.carNo,
-          order: r.order,
-          playerName: r.playerName,
-          raceTime: r.raceTime,
-          st: r.st,
-        })),
-      });
-    }
-  } catch {
-    // No confirmed result yet (race hasn't run) — not an error for our purposes.
-  }
+  await attachResultsIfAvailable(race.id, venue.code, raceDate, raceNo);
 
   return prisma.race.findUniqueOrThrow({
     where: { id: race.id },
     include: { entries: true, results: true },
+  });
+}
+
+/** All cached races that have both entries and a confirmed result, for stats. */
+export async function getRacesWithResults() {
+  return prisma.race.findMany({
+    where: { results: { some: {} } },
+    include: { entries: true, results: true, venue: true },
+    orderBy: [{ raceDate: "desc" }, { raceNo: "desc" }],
   });
 }

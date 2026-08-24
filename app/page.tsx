@@ -1,3 +1,4 @@
+import Link from "next/link";
 import RaceSelectorForm from "@/app/race-selector-form";
 
 export default function Home() {
@@ -11,6 +12,9 @@ export default function Home() {
         </p>
       </div>
       <RaceSelectorForm />
+      <Link href="/stats" className="text-sm text-red-600 hover:underline">
+        予想の的中率を見る →
+      </Link>
     </div>
   );
 }
