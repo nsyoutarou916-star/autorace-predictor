@@ -1,0 +1,71 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Venue {
+  id    Int    @id @default(autoincrement())
+  code  Int    @unique // placeCode used by autorace.jp API
+  key   String @unique // e.g. "iizuka"
+  name  String // e.g. "飯塚"
+  races Race[]
+}
+
+model Race {
+  id             Int       @id @default(autoincrement())
+  venue          Venue     @relation(fields: [venueId], references: [id])
+  venueId        Int
+  raceDate       String // "YYYY-MM-DD"
+  raceNo         Int
+  distance       Int? // meters
+  weather        String?
+  trackCondition String?
+  postTime       String?
+  fetchedAt      DateTime  @default(now())
+  entries        Entry[]
+  results        ResultEntry[]
+
+  @@unique([venueId, raceDate, raceNo])
+}
+
+model Entry {
+  id         Int    @id @default(autoincrement())
+  race       Race   @relation(fields: [raceId], references: [id])
+  raceId     Int
+  carNo      Int
+  playerCode String
+  playerName String
+  branch     String? // 支所
+  age        Int?
+  bikeClass  Int?
+  bikeName   String?
+  rank       String?
+  handicap   Int
+  trialTime  String?
+  raceDev    String? // 偏差
+  rate2      String? // 2連率
+  rate3      String? // 3連率
+  recentJson String? // latest3List entry, JSON-encoded
+
+  @@unique([raceId, carNo])
+}
+
+model ResultEntry {
+  id         Int    @id @default(autoincrement())
+  race       Race   @relation(fields: [raceId], references: [id])
+  raceId     Int
+  carNo      Int
+  order      Int?
+  playerName String?
+  raceTime   String?
+  st         String?
+
+  @@unique([raceId, carNo])
+}
