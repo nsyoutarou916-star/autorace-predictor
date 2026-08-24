@@ -1,6 +1,7 @@
 import type { Entry, ResultEntry, Venue } from "@/app/generated/prisma/client";
 import { computeScores } from "@/lib/predict";
 import { simulateTrifecta } from "@/lib/simulate";
+import { buildFormation } from "@/lib/formation";
 
 interface RaceWithDetails {
   id: number;
@@ -24,6 +25,9 @@ export interface RaceStatRow {
   actualTrifecta: [number, number, number] | null;
   trifectaHit: boolean;
   trifectaBoxHit: boolean;
+  formationComboCount: number | null;
+  formationCoverage: number | null;
+  formationHit: boolean;
 }
 
 export interface StatsSummary {
@@ -34,6 +38,9 @@ export interface StatsSummary {
   trifectaHitRate: number;
   trifectaBoxHitCount: number;
   trifectaBoxHitRate: number;
+  formationEligibleCount: number;
+  formationHitCount: number;
+  formationHitRate: number;
   rows: RaceStatRow[];
 }
 
@@ -69,6 +76,13 @@ export function computeStats(races: RaceWithDetails[]): StatsSummary {
         new Set(predictedTrifecta).size === 3 &&
         predictedTrifecta.every((carNo) => actual.includes(carNo));
 
+      const formation = buildFormation(scored);
+      const actualKey = actual ? actual.join("-") : null;
+      const formationHit =
+        !!formation &&
+        !!actualKey &&
+        formation.combos.some((c) => c.carNos.join("-") === actualKey);
+
       return {
         raceId: race.id,
         venueName: race.venue.name,
@@ -81,6 +95,9 @@ export function computeStats(races: RaceWithDetails[]): StatsSummary {
         actualTrifecta: actual,
         trifectaHit,
         trifectaBoxHit,
+        formationComboCount: formation?.combos.length ?? null,
+        formationCoverage: formation?.totalCoverage ?? null,
+        formationHit,
       };
     });
 
@@ -88,6 +105,13 @@ export function computeStats(races: RaceWithDetails[]): StatsSummary {
   const winHitCount = rows.filter((r) => r.winHit).length;
   const trifectaHitCount = rows.filter((r) => r.trifectaHit).length;
   const trifectaBoxHitCount = rows.filter((r) => r.trifectaBoxHit).length;
+  const formationEligibleRows = rows.filter(
+    (r) => r.formationComboCount !== null,
+  );
+  const formationEligibleCount = formationEligibleRows.length;
+  const formationHitCount = formationEligibleRows.filter(
+    (r) => r.formationHit,
+  ).length;
 
   return {
     totalRaces,
@@ -97,6 +121,12 @@ export function computeStats(races: RaceWithDetails[]): StatsSummary {
     trifectaHitRate: totalRaces > 0 ? trifectaHitCount / totalRaces : 0,
     trifectaBoxHitCount,
     trifectaBoxHitRate: totalRaces > 0 ? trifectaBoxHitCount / totalRaces : 0,
+    formationEligibleCount,
+    formationHitCount,
+    formationHitRate:
+      formationEligibleCount > 0
+        ? formationHitCount / formationEligibleCount
+        : 0,
     rows,
   };
 }

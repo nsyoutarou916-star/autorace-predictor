@@ -29,7 +29,7 @@ export default async function StatsPage() {
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard
               label="◎単勝的中率"
               hint="◎の選手が実際に1着だった割合"
@@ -51,6 +51,13 @@ export default async function StatsPage() {
               total={stats.totalRaces}
               rate={stats.trifectaBoxHitRate}
             />
+            <StatCard
+              label="フォーメーション的中率"
+              hint="フォーメーションの組み合わせのどれかが的中した割合"
+              count={stats.formationHitCount}
+              total={stats.formationEligibleCount}
+              rate={stats.formationHitRate}
+            />
           </div>
 
           <div className="min-w-0 overflow-x-auto rounded-lg border border-black/10 dark:border-white/15">
@@ -67,6 +74,7 @@ export default async function StatsPage() {
                   <Th>実際3連単</Th>
                   <Th>3連単</Th>
                   <Th>3連複</Th>
+                  <Th>フォーメーション</Th>
                 </tr>
               </thead>
               <tbody>
@@ -85,6 +93,11 @@ export default async function StatsPage() {
                     <Td>{row.actualTrifecta?.join("-") ?? "-"}</Td>
                     <Td>{row.trifectaHit ? "◯" : "×"}</Td>
                     <Td>{row.trifectaBoxHit ? "◯" : "×"}</Td>
+                    <Td>
+                      {row.formationComboCount === null
+                        ? "-"
+                        : `${row.formationHit ? "◯" : "×"}(${row.formationComboCount}点)`}
+                    </Td>
                   </tr>
                 ))}
               </tbody>
