@@ -169,3 +169,27 @@ export async function getRacesWithResults() {
     orderBy: [{ raceDate: "desc" }, { raceNo: "desc" }],
   });
 }
+
+/**
+ * Fetches/caches every race (1-12) for a venue+date in one go, so the
+ * accuracy stats page fills up without having to open each race by hand.
+ * Races that don't exist (not yet run, or a short race day) are skipped
+ * rather than treated as failures.
+ */
+export async function fetchAllRacesForVenue(
+  venueKey: string,
+  raceDate: string,
+  maxRaceNo = 12,
+): Promise<{ fetched: number; skipped: number }> {
+  let fetched = 0;
+  let skipped = 0;
+  for (let raceNo = 1; raceNo <= maxRaceNo; raceNo++) {
+    try {
+      await getOrFetchRace(venueKey, raceDate, raceNo);
+      fetched++;
+    } catch {
+      skipped++;
+    }
+  }
+  return { fetched, skipped };
+}

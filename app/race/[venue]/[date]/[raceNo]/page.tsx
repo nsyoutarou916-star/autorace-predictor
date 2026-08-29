@@ -3,6 +3,7 @@ import { getOrFetchRace, RaceNotFoundError } from "@/lib/scrape";
 import { computeScores } from "@/lib/predict";
 import { simulateTrifecta } from "@/lib/simulate";
 import { buildFormation, TARGET_COVERAGE } from "@/lib/formation";
+import { computeExacta, computeTrio } from "@/lib/otherBets";
 import { venueByKey } from "@/lib/venues";
 
 interface Props {
@@ -44,6 +45,8 @@ export default async function RacePage({ params }: Props) {
   const trifectaCandidates = simulateTrifecta(scored, 20000);
   const topTrifecta = trifectaCandidates[0];
   const formation = buildFormation(scored);
+  const exacta = computeExacta(scored);
+  const trio = computeTrio(scored);
 
   const actualTrifecta = hasResults
     ? [1, 2, 3]
@@ -59,6 +62,19 @@ export default async function RacePage({ params }: Props) {
     formation && actualKey
       ? formation.combos.find((c) => c.carNos.join("-") === actualKey)
       : undefined;
+
+  const exactaHit =
+    hasResults &&
+    !!exacta &&
+    actualTrifecta.length >= 2 &&
+    actualTrifecta[0] === exacta.carNos[0] &&
+    actualTrifecta[1] === exacta.carNos[1];
+  const trioHit =
+    hasResults &&
+    !!trio &&
+    actualTrifecta.length === 3 &&
+    new Set(trio.carNos).size === 3 &&
+    trio.carNos.every((carNo) => actualTrifecta.includes(carNo));
 
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-6 px-6 py-16">
@@ -307,6 +323,89 @@ export default async function RacePage({ params }: Props) {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {(exacta || trio) && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {exacta && (
+            <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+              <h2 className="text-lg font-bold">2連単予想</h2>
+              <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+                予想点上位2頭がそのまま1着→2着になる予想です。
+              </p>
+              <div className="mt-4 flex items-center gap-4 rounded-lg bg-black/5 p-4 dark:bg-white/5">
+                <div className="flex items-center gap-2 text-2xl font-bold">
+                  <span>{exacta.carNos[0]}</span>
+                  <span className="text-black/30 dark:text-white/30">→</span>
+                  <span>{exacta.carNos[1]}</span>
+                </div>
+                <div className="text-sm text-black/60 dark:text-white/60">
+                  <div>
+                    {exacta.carNos
+                      .map((carNo) => nameByCarNo.get(carNo) ?? carNo)
+                      .join(" → ")}
+                  </div>
+                  <div>的中確率 {(exacta.probability * 100).toFixed(1)}%</div>
+                </div>
+              </div>
+              {hasResults && actualTrifecta.length >= 2 && (
+                <p
+                  className={`mt-3 text-sm ${
+                    exactaHit
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-black/60 dark:text-white/60"
+                  }`}
+                >
+                  実際の結果: {actualTrifecta.slice(0, 2).join(" → ")}
+                  {exactaHit ? "(的中!)" : "(不的中)"}
+                </p>
+              )}
+            </div>
+          )}
+
+          {trio && (
+            <div className="rounded-lg border border-black/10 p-6 dark:border-white/15">
+              <h2 className="text-lg font-bold">3連複予想</h2>
+              <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+                予想点上位3頭が着順問わず上位3着に入る予想です。
+              </p>
+              <div className="mt-4 flex items-center gap-4 rounded-lg bg-black/5 p-4 dark:bg-white/5">
+                <div className="flex items-center gap-2 text-2xl font-bold">
+                  {trio.carNos.map((carNo, i) => (
+                    <span key={carNo} className="flex items-center gap-2">
+                      {i > 0 && (
+                        <span className="text-black/30 dark:text-white/30">
+                          -
+                        </span>
+                      )}
+                      <span>{carNo}</span>
+                    </span>
+                  ))}
+                </div>
+                <div className="text-sm text-black/60 dark:text-white/60">
+                  <div>
+                    {trio.carNos
+                      .map((carNo) => nameByCarNo.get(carNo) ?? carNo)
+                      .join(" / ")}
+                  </div>
+                  <div>的中確率 {(trio.probability * 100).toFixed(1)}%</div>
+                </div>
+              </div>
+              {hasResults && actualTrifecta.length === 3 && (
+                <p
+                  className={`mt-3 text-sm ${
+                    trioHit
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-black/60 dark:text-white/60"
+                  }`}
+                >
+                  実際の結果: {actualTrifecta.join(" / ")}
+                  {trioHit ? "(的中!)" : "(不的中)"}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

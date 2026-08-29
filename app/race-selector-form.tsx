@@ -1,8 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { VENUES, type VenueKey } from "@/lib/venues";
+import { fetchAllRacesAction } from "@/app/actions";
 
 function todayJST(): string {
   const now = new Date();
@@ -15,10 +16,22 @@ export default function RaceSelectorForm() {
   const [venue, setVenue] = useState<VenueKey>("iizuka");
   const [date, setDate] = useState(todayJST());
   const [raceNo, setRaceNo] = useState(1);
+  const [isFetchingAll, startFetchAll] = useTransition();
+  const [fetchAllResult, setFetchAllResult] = useState<string | null>(null);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     router.push(`/race/${venue}/${date}/${raceNo}`);
+  }
+
+  function handleFetchAll() {
+    setFetchAllResult(null);
+    startFetchAll(async () => {
+      const result = await fetchAllRacesAction(venue, date);
+      setFetchAllResult(
+        `${result.fetched}レース取得しました(開催なし/取得失敗 ${result.skipped}件)。`,
+      );
+    });
   }
 
   return (
@@ -73,12 +86,31 @@ export default function RaceSelectorForm() {
         </label>
       </div>
 
-      <button
-        type="submit"
-        className="self-start rounded bg-red-600 px-6 py-2 text-sm font-semibold text-white hover:bg-red-700"
-      >
-        予想を見る
-      </button>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="submit"
+          className="rounded bg-red-600 px-6 py-2 text-sm font-semibold text-white hover:bg-red-700"
+        >
+          予想を見る
+        </button>
+
+        <button
+          type="button"
+          onClick={handleFetchAll}
+          disabled={isFetchingAll}
+          className="rounded border border-black/15 px-6 py-2 text-sm font-semibold hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:hover:bg-white/10"
+        >
+          {isFetchingAll
+            ? "取得中...(1分ほどかかります)"
+            : "この開催日の全レースを一括取得"}
+        </button>
+      </div>
+
+      {fetchAllResult && (
+        <p className="text-sm text-black/60 dark:text-white/60">
+          {fetchAllResult} 「予想の的中率を見る」からまとめて確認できます。
+        </p>
+      )}
     </form>
   );
 }

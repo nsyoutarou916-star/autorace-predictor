@@ -16,8 +16,8 @@ export interface Formation {
 
 /** Below this cumulative hit-probability we keep widening the formation. */
 export const TARGET_COVERAGE = 0.28;
-/** Hard cap on ticket count so a wide-open race doesn't blow up the buy. */
-const MAX_COMBOS = 42;
+/** Hard cap on ticket count, kept low to keep the stake size reasonable. */
+export const MAX_COMBOS = 20;
 
 /**
  * Exact (non-simulated) Plackett-Luce probability that the race finishes
@@ -103,33 +103,57 @@ export function buildFormation(scored: ScoredEntry[]): Formation | null {
   );
   let coverage = combos.reduce((sum, c) => sum + c.probability, 0);
 
-  // Widen the net (alternating 3rd/2nd) until we hit the coverage target,
-  // run out of cars to add, or hit the ticket-count ceiling.
-  while (
-    coverage < TARGET_COVERAGE &&
-    combos.length < MAX_COMBOS &&
-    (thirdSize < ranked.length - 1 || secondSize < ranked.length - 1)
-  ) {
+  // Widen the net (alternating 3rd/2nd) until we hit the coverage target or
+  // run out of cars to add — but only ever commit a step that keeps the
+  // ticket count at or under MAX_COMBOS, so the cap is never exceeded.
+  while (coverage < TARGET_COVERAGE) {
+    let grew = false;
+
     if (thirdSize < ranked.length - 1) {
-      thirdSize++;
-    } else if (secondSize < ranked.length - 1) {
-      secondSize++;
-    } else {
-      break;
+      const trialThirdSize = thirdSize + 1;
+      const trialThirdMain = ranked.slice(0, trialThirdSize);
+      const trialAna = ranked[trialThirdSize] ?? null;
+      const trialThirdCandidates = trialAna
+        ? [...trialThirdMain, trialAna]
+        : trialThirdMain;
+      const trialCombos = buildCombos(
+        weights,
+        total,
+        axisCarNos,
+        secondCandidates,
+        trialThirdCandidates,
+      );
+      if (trialCombos.length <= MAX_COMBOS) {
+        thirdSize = trialThirdSize;
+        thirdMain = trialThirdMain;
+        anaCarNo = trialAna;
+        thirdCandidates = trialThirdCandidates;
+        combos = trialCombos;
+        coverage = combos.reduce((sum, c) => sum + c.probability, 0);
+        grew = true;
+      }
     }
 
-    secondCandidates = ranked.slice(0, secondSize);
-    thirdMain = ranked.slice(0, thirdSize);
-    anaCarNo = ranked[thirdSize] ?? null;
-    thirdCandidates = anaCarNo ? [...thirdMain, anaCarNo] : thirdMain;
-    combos = buildCombos(
-      weights,
-      total,
-      axisCarNos,
-      secondCandidates,
-      thirdCandidates,
-    );
-    coverage = combos.reduce((sum, c) => sum + c.probability, 0);
+    if (!grew && secondSize < ranked.length - 1) {
+      const trialSecondSize = secondSize + 1;
+      const trialSecondCandidates = ranked.slice(0, trialSecondSize);
+      const trialCombos = buildCombos(
+        weights,
+        total,
+        axisCarNos,
+        trialSecondCandidates,
+        thirdCandidates,
+      );
+      if (trialCombos.length <= MAX_COMBOS) {
+        secondSize = trialSecondSize;
+        secondCandidates = trialSecondCandidates;
+        combos = trialCombos;
+        coverage = combos.reduce((sum, c) => sum + c.probability, 0);
+        grew = true;
+      }
+    }
+
+    if (!grew) break; // can't widen further without exceeding the cap
   }
 
   combos.sort((x, y) => y.probability - x.probability);
